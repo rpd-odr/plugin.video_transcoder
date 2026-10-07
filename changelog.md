@@ -1,3 +1,11 @@
+**<span style="color:#56adda">0.1.20-rpd1</span>**
+- Custom fork based on upstream 0.1.20.
+- Added optional **Add Dolby Vision to AV1** setting for Standard mode.
+- Detects actual Dolby Vision RPU metadata before applying FFmpeg's dovi_rpu bitstream filter.
+- Preserves Dolby Vision RPU when transcoding compatible Dolby Vision sources to AV1 with SVT-AV1.
+- Keeps existing smart black-bar detection/cropping and resolution scaling behavior.
+- Sources without Dolby Vision RPU use the normal AV1 transcoding path.
+
 **<span style="color:#56adda">0.1.20</span>**
 - Corrected encoder options setting in plugin stream mapper for libsvtav1
 - Fix the libsvtav1 encoder integration so the stream mapper uses the correct encoder args contract
