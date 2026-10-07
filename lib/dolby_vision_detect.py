@@ -26,6 +26,7 @@ class DolbyVisionDetect:
         append_worker_log(self.worker_log, line)
 
     def _contains_rpu(self, value: Any) -> bool:
+        """Return True only for an explicit FFprobe indication of RPU data."""
         if isinstance(value, dict):
             for key, item in value.items():
                 key_l = str(key).lower()
@@ -36,16 +37,6 @@ class DolbyVisionDetect:
                     except (TypeError, ValueError):
                         if str(item).lower() in ("true", "yes", "on"):
                             return True
-
-                if "dovi" in key_l or "dolby" in key_l:
-                    text = str(item).lower()
-                    if "dovi" in text or "dolby" in text or key_l in (
-                        "dv_profile",
-                        "dv_version_major",
-                        "dv_version_minor",
-                    ):
-                        return True
-
                 if self._contains_rpu(item):
                     return True
 
@@ -54,20 +45,15 @@ class DolbyVisionDetect:
                 if self._contains_rpu(item):
                     return True
 
-        elif isinstance(value, str):
-            value_l = value.lower()
-            if "dovi configuration record" in value_l:
-                return True
-
         return False
 
     def detect_rpu(self, probe_data) -> bool:
         """
-        Return True when FFprobe reports Dolby Vision metadata/RPU data.
+        Return True only when FFprobe explicitly reports RPU metadata.
 
-        This intentionally checks for the Dolby Vision metadata itself rather
-        than requiring an enhancement layer. Dolby Vision Profile 8.x commonly
-        carries RPU metadata without a separate EL stream.
+        Do not infer RPU presence from dv_profile alone: a Dolby Vision profile
+        field can exist without an RPU payload. Profile 8.x can legitimately
+        have no enhancement layer while still carrying an RPU.
         """
         try:
             detected = self._contains_rpu(probe_data)
