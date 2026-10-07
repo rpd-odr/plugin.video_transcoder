@@ -73,6 +73,7 @@ class GlobalSettings:
             "filter_settings":        {
                 "apply_smart_filters":      False,
                 "autocrop_black_bars":      False,
+                "add_dovi_to_av1":          False,
                 "target_resolution":        "source",
                 "strip_data_streams":       False,
                 "strip_attachment_streams": False,
@@ -279,6 +280,19 @@ class GlobalSettings:
         if not self.settings.get_setting('apply_smart_filters'):
             values["display"] = 'hidden'
         if self.settings.get_setting('mode') not in ['basic', 'standard']:
+            values["display"] = 'hidden'
+        return values
+
+    def get_add_dovi_to_av1_form_settings(self):
+        values = {
+            "label":       "Add Dolby Vision to AV1",
+            "description": "Checks the source video for Dolby Vision RPU metadata and preserves it when transcoding to AV1.\n"
+                           "If Dolby Vision metadata is not present, the normal AV1 transcode is used.",
+            "req_lev":     2,
+        }
+        if self.settings.get_setting('mode') not in ['standard']:
+            values["display"] = 'hidden'
+        if self.settings.get_setting('video_codec') != 'av1':
             values["display"] = 'hidden'
         return values
 
