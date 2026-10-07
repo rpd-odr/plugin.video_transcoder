@@ -31,6 +31,7 @@ from video_transcoder.lib.encoders.nvenc import NvencEncoder
 from video_transcoder.lib.encoders.libsvtav1 import LibsvtAv1Encoder
 from video_transcoder.lib.ffmpeg import Probe, StreamMapper
 from video_transcoder.lib.smart_black_bar_detect import SmartBlackBarDetect
+from video_transcoder.lib.dolby_vision_detect import DolbyVisionDetect
 
 # Configure plugin logger
 logger = logging.getLogger("Unmanic.Plugin.video_transcoder")
@@ -44,6 +45,7 @@ class PluginStreamMapper(StreamMapper):
         self.settings = None
         self.complex_video_filters = {}
         self.crop_value = None
+        self.dovi_rpu_present = False
         self.forced_encode = False
         self.execution_stage = False
 
@@ -96,6 +98,20 @@ class PluginStreamMapper(StreamMapper):
                     '-max_muxing_queue_size': str(self.settings.get_setting('max_muxing_queue_size'))
                 }
                 self.set_ffmpeg_advanced_options(**advanced_kwargs)
+
+        # Detect Dolby Vision RPU metadata when explicitly enabled for AV1.
+        # This is intentionally independent from the smart video filters.
+        if (
+            self.settings.get_setting('mode') == 'standard'
+            and self.settings.get_setting('video_codec') == 'av1'
+            and self.settings.get_setting('add_dovi_to_av1')
+        ):
+            detector = DolbyVisionDetect(self.worker_log)
+            self.dovi_rpu_present = detector.detect_rpu(abspath, probe.get_probe())
+            tools.append_worker_log(
+                self.worker_log,
+                "Dolby Vision RPU detection: {}".format("present" if self.dovi_rpu_present else "not present")
+            )
 
         # Check for config specific settings in modes that expose smart filters
         if self.settings.get_setting('mode') in ['basic', 'standard']:
@@ -399,6 +415,17 @@ class PluginStreamMapper(StreamMapper):
                 stream_encoding = [
                     '-c:{}'.format(stream_specifier), encoder_name,
                 ]
+
+                # Preserve Dolby Vision RPU metadata when requested and detected.
+                # Use a stream-specific bitstream filter so multi-video files are handled safely.
+                if self.dovi_rpu_present and self.settings.get_setting('video_codec') == 'av1':
+                    stream_encoding += [
+                        '-bsf:{}'.format(stream_specifier), 'dovi_rpu',
+                    ]
+                    tools.append_worker_log(
+                        self.worker_log,
+                        "Dolby Vision RPU: applying dovi_rpu to video stream {}".format(stream_id)
+                    )
 
                 # Load encoder classes
                 libx_encoder = LibxEncoder(self.settings, self.probe)
