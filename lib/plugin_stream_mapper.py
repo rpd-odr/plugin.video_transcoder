@@ -61,6 +61,8 @@ class PluginStreamMapper(StreamMapper):
         # Reset execution stage for new files
         self.execution_stage = False
         self.abspath = abspath
+        # Reset per-file Dolby Vision state when the mapper is reused.
+        self.dovi_rpu_present = False
         # Set the file probe data
         self.set_probe(probe)
         # Set the input file
