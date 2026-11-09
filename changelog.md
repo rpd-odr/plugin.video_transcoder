@@ -1,3 +1,8 @@
+**<span style="color:#56adda">0.1.20-rpd2</span>**
+- Explicitly enables SVT-AV1 Dolby Vision RPU coding with `-dolbyvision 1` when RPU metadata is detected.
+- Keeps the stream-specific `dovi_rpu` bitstream filter and leaves non-Dolby-Vision sources unchanged.
+- Scope remains limited to the tested Dolby Vision Profile 8 path; Profile 7.6 is not enabled or claimed as supported.
+
 **<span style="color:#56adda">0.1.20-rpd1</span>**
 - Custom fork based on upstream 0.1.20.
 - Added optional **Add Dolby Vision to AV1** setting for Standard mode.
