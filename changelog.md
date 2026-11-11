@@ -1,3 +1,8 @@
+**<span style="color:#56adda">0.1.20-rpd6</span>**
+- Fixes HDR10+ false negatives when FFprobe omits SMPTE ST 2094-40 side data by falling back to `hdr10plus_tool_av1` bitstream extraction.
+- Passes the source path into the HDR10+ detector and reuses the resolved extractor path in the staged AV1 metadata pipeline.
+- Fixes Dolby Vision crop validation to inspect the extracted RPU, then verifies the crop-adjusted RPU frame count and zero Level 5 offsets.
+
 **<span style="color:#56adda">0.1.20-rpd4</span>**
 - Restores the Dolby Vision configuration record after HDR10+ AV1 IVF remux using `dovi_rpu=compression=none`.
 - Verifies the final MKV advertises Dolby Vision Profile 10 BL+RPU with compatibility ID 1.
