@@ -1,5 +1,7 @@
 name: Automatically build and publish this plugin
 
+# rpd6 release build trigger
+
 on:
   push:
     branches:
