@@ -335,7 +335,7 @@ def inject_hdr10plus(ffmpeg, ffprobe, hdr_tool, output, json_path, json_frames, 
     )
     if dovi_present:
         final_probe = ffprobe_json(
-            ffprobe, output,
+            ffprobe, remuxed,
             ("-select_streams", "v:0", "-show_streams")
         )
         final_streams = final_probe.get("streams", [])
@@ -365,7 +365,7 @@ def inject_hdr10plus(ffmpeg, ffprobe, hdr_tool, output, json_path, json_frames, 
 
     final_json = os.path.join(workdir, "final_verified_hdr10plus.json")
     run_checked(
-        [hdr_tool, "extract", output, "-o", final_json],
+        [hdr_tool, "extract", remuxed, "-o", final_json],
         "Verifying HDR10+ metadata after final MKV remux"
     )
     with open(final_json, "r", encoding="utf-8") as stream:
