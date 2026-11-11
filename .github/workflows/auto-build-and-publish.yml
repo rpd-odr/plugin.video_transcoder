@@ -11,6 +11,8 @@ on:
 jobs:
 
   build-and-publish-plugin:
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     name: Build and publish plugin
     steps:
