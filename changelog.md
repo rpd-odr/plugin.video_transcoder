@@ -1,3 +1,32 @@
+**<span style="color:#56adda">0.1.20-rpd6</span>**
+- Fixes HDR10+ false negatives when FFprobe omits SMPTE ST 2094-40 side data by falling back to `hdr10plus_tool_av1` bitstream extraction.
+- Passes the source path into the HDR10+ detector and reuses the resolved extractor path in the staged AV1 metadata pipeline.
+- Fixes Dolby Vision crop validation to inspect the extracted RPU, then verifies the crop-adjusted RPU frame count and zero Level 5 offsets.
+
+**<span style="color:#56adda">0.1.20-rpd4</span>**
+- Restores the Dolby Vision configuration record after HDR10+ AV1 IVF remux using `dovi_rpu=compression=none`.
+- Verifies the final MKV advertises Dolby Vision Profile 10 BL+RPU with compatibility ID 1.
+- Re-extracts HDR10+ from the final MKV and checks the metadata frame count after remux.
+- Restricts the combined DV + HDR10+ remux to single-video-stream sources and publishes the remux only after validation.
+- Replaces the old `dovi_rpu` passthrough path with a crop-aware Dolby Vision P8.1 RPU preparation stage.
+- Adds HDR10+ extraction and post-encode ITU-T T.35 injection into AV1.
+- Adds strict frame-count verification; metadata is never silently duplicated or truncated.
+- Requires `dovi_tool` for cropped DV P8.1 and an AV1-enabled `hdr10plus_tool_av1` for HDR10+ sources.
+- Leaves Profile 7.6 unsupported.
+
+**<span style="color:#56adda">0.1.20-rpd2</span>**
+- Explicitly enables SVT-AV1 Dolby Vision RPU coding with `-dolbyvision 1` when RPU metadata is detected.
+- Keeps the stream-specific `dovi_rpu` bitstream filter and leaves non-Dolby-Vision sources unchanged.
+- Scope remains limited to the tested Dolby Vision Profile 8 path; Profile 7.6 is not enabled or claimed as supported.
+
+**<span style="color:#56adda">0.1.20-rpd1</span>**
+- Custom fork based on upstream 0.1.20.
+- Added optional **Add Dolby Vision to AV1** setting for Standard mode.
+- Detects actual Dolby Vision RPU metadata before applying FFmpeg's dovi_rpu bitstream filter.
+- Preserves Dolby Vision RPU when transcoding compatible Dolby Vision sources to AV1 with SVT-AV1.
+- Keeps existing smart black-bar detection/cropping and resolution scaling behavior.
+- Sources without Dolby Vision RPU use the normal AV1 transcoding path.
+
 **<span style="color:#56adda">0.1.20</span>**
 - Corrected encoder options setting in plugin stream mapper for libsvtav1
 - Fix the libsvtav1 encoder integration so the stream mapper uses the correct encoder args contract
