@@ -2,43 +2,30 @@
 
 This is a custom fork of the Unmanic Transcode Video Files plugin.
 
-The plugin provides the same standard and advanced transcoding functionality as the upstream plugin, with an optional Dolby Vision RPU preservation feature for AV1.
+## Dolby Vision and HDR10+ to AV1
 
-## Dolby Vision to AV1
+In Standard mode, with AV1 selected and **Preserve Dolby Vision and HDR10+ in AV1** enabled, the plugin detects dynamic metadata in the source.
 
-When Config mode is Standard, Video Codec is AV1, and Add Dolby Vision to AV1 is enabled, the plugin:
+For supported Dolby Vision Profile 8.1 sources, the plugin enables SVT-AV1 Dolby Vision coding. When black-bar cropping is active, it prepares an intermediate HEVC elementary stream with crop-adjusted Dolby Vision RPU Level 5 active-area metadata before decoding and encoding.
 
-1. Probes the source video for Dolby Vision RPU metadata.
-2. Adds FFmpeg's dovi_rpu bitstream filter only when RPU metadata is actually present.
-3. Leaves sources without Dolby Vision RPU on the normal AV1 transcoding path.
+For HDR10+ sources, the plugin extracts the source SMPTE ST 2094-40 metadata and injects the corresponding ITU-T T.35 metadata OBUs into the encoded AV1 bitstream. The AV1 stream is then remuxed with the original output's audio, subtitles, chapters, attachments, and other streams.
 
-This allows compatible Dolby Vision sources to retain their RPU metadata after AV1 encoding. In tested sources, FFmpeg/MediaInfo reports AV1 Dolby Vision Profile 10 with BL+RPU.
+The plugin checks frame counts and fails safely if metadata cannot be aligned with the encoded AV1 frames. It does not silently duplicate or truncate HDR10+ metadata.
 
-Existing smart filters are preserved, including automatic black-bar detection/cropping and resolution scaling.
+Dolby Vision Profile 7.6 is not enabled by this feature.
 
-## Versioning
+## Runtime requirements
 
-This fork uses versions in the form <upstream-version>-rpd<revision>.
+Required executables must be available inside the Unmanic container:
 
-For example:
+- `ffmpeg` and `ffprobe`
+- `dovi_tool` for crop-aware Dolby Vision RPU preparation
+- `hdr10plus_tool_av1`, an AV1-capable build of [sven-pke/hdr10plus_tool](https://github.com/sven-pke/hdr10plus_tool), for HDR10+ extraction and AV1 injection
 
-- 0.1.20-rpd1 is based on upstream 0.1.20.
-- A later upstream 0.1.21 release will be rebased into a new custom version such as 0.1.21-rpd1.
-
-The custom plugin repository is separate from the official repository. Install and update the custom plugin from the custom repository.
+The standard HEVC-only `hdr10plus_tool` binary cannot perform the AV1 injection stage.
 
 ## Support
 
-For issues specific to the custom Dolby Vision functionality, use the custom fork:
-
-- [GitHub repository](https://github.com/rpd-odr/plugin.video_transcoder)
-
-For upstream functionality, consult the original project:
-
+- [Custom fork](https://github.com/rpd-odr/plugin.video_transcoder)
 - [Official plugin](https://github.com/Unmanic/plugin.video_transcoder)
 - [Unmanic](https://github.com/Unmanic/Unmanic)
-
-## Encoder documentation
-
-- [FFmpeg](https://ffmpeg.org/ffmpeg.html)
-- [SVT-AV1](https://gitlab.com/AOMediaCodec/SVT-AV1)
