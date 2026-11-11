@@ -14,6 +14,7 @@ When Config mode is Standard, Video Codec is AV1, and **Preserve Dolby Vision an
 - Extracts source HDR10+ metadata and injects it into the encoded AV1 stream as ITU-T T.35 metadata OBUs before final remuxing.
 - Verifies that source HDR10+ metadata and encoded AV1 frame counts match. It fails the task rather than duplicating or truncating dynamic metadata.
 - After final remux, restores the AV1 Dolby Vision configuration record with `dovi_rpu=compression=none` when DV is present, verifies Profile 10 BL+RPU / compatibility ID 1, and re-extracts HDR10+ from the final MKV.
+- The combined DV + HDR10+ remux currently requires a single video stream; all final checks run before the remuxed file replaces the encoded output.
 - Leaves files without the supported metadata on the normal FFmpeg path.
 
 Profile 7.6 is deliberately not enabled by this feature.
