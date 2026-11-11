@@ -327,14 +327,12 @@ def inject_hdr10plus(ffmpeg, ffprobe, hdr_tool, output, json_path, json_frames, 
         # Rebuild the AV1 Dolby Vision configuration record after replacing
         # the video stream with IVF. Keep compression=none to match the
         # tested Profile 10 BL+RPU representation.
-        remux_command += ["-bsf:v", "dovi_rpu=compression=none"]
+        remux_command += ["-bsf:v:0", "dovi_rpu=compression=none"]
     remux_command += [remuxed]
     run_checked(
         remux_command,
         "Remuxing AV1 with HDR10+ and restoring Dolby Vision configuration when present"
     )
-    os.replace(remuxed, output)
-
     if dovi_present:
         final_probe = ffprobe_json(
             ffprobe, output,
@@ -380,6 +378,9 @@ def inject_hdr10plus(ffmpeg, ffprobe, hdr_tool, output, json_path, json_frames, 
             )
         )
 
+    # Publish the remuxed file only after all metadata checks have passed.
+    os.replace(remuxed, output)
+
 
 def main(config_path):
     with open(config_path, "r", encoding="utf-8") as stream:
@@ -407,6 +408,10 @@ def main(config_path):
         if dovi_present and crop_value and get_video_stream_count(ffprobe, source) != 1:
             raise RuntimeError(
                 "Crop-adjusted DV preparation currently requires exactly one video stream"
+            )
+        if dovi_present and hdr10plus_present and get_video_stream_count(ffprobe, source) != 1:
+            raise RuntimeError(
+                "DV + HDR10+ final remux currently requires exactly one video stream"
             )
 
         hdr_tool = None
