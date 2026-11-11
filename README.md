@@ -13,6 +13,7 @@ When Config mode is Standard, Video Codec is AV1, and **Preserve Dolby Vision an
 - Enables SVT-AV1 Dolby Vision coding with `-dolbyvision 1`; it does not rely on the `dovi_rpu` bitstream filter passthrough.
 - Extracts source HDR10+ metadata and injects it into the encoded AV1 stream as ITU-T T.35 metadata OBUs before final remuxing.
 - Verifies that source HDR10+ metadata and encoded AV1 frame counts match. It fails the task rather than duplicating or truncating dynamic metadata.
+- After final remux, restores the AV1 Dolby Vision configuration record with `dovi_rpu=compression=none` when DV is present, verifies Profile 10 BL+RPU / compatibility ID 1, and re-extracts HDR10+ from the final MKV.
 - Leaves files without the supported metadata on the normal FFmpeg path.
 
 Profile 7.6 is deliberately not enabled by this feature.
@@ -29,7 +30,7 @@ The ordinary HEVC-only `hdr10plus_tool` build is not sufficient for the AV1 inje
 
 ## Versioning
 
-Custom releases use the `-rpdN` suffix. Current development version: `0.1.20-rpd3`.
+Custom releases use the `-rpdN` suffix. Current development version: `0.1.20-rpd4`.
 
 ## Upstream
 
