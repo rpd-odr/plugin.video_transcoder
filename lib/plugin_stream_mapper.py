@@ -31,6 +31,7 @@ from video_transcoder.lib.encoders.nvenc import NvencEncoder
 from video_transcoder.lib.encoders.libsvtav1 import LibsvtAv1Encoder
 from video_transcoder.lib.ffmpeg import Probe, StreamMapper
 from video_transcoder.lib.smart_black_bar_detect import SmartBlackBarDetect
+from video_transcoder.lib.dolby_vision_detect import DolbyVisionDetect
 
 # Configure plugin logger
 logger = logging.getLogger("Unmanic.Plugin.video_transcoder")
@@ -44,6 +45,8 @@ class PluginStreamMapper(StreamMapper):
         self.settings = None
         self.complex_video_filters = {}
         self.crop_value = None
+        self.dovi_rpu_present = False
+        self.hdr10plus_present = False
         self.forced_encode = False
         self.execution_stage = False
 
@@ -59,6 +62,9 @@ class PluginStreamMapper(StreamMapper):
         # Reset execution stage for new files
         self.execution_stage = False
         self.abspath = abspath
+        # Reset per-file Dolby Vision state when the mapper is reused.
+        self.dovi_rpu_present = False
+        self.hdr10plus_present = False
         # Set the file probe data
         self.set_probe(probe)
         # Set the input file
@@ -96,6 +102,33 @@ class PluginStreamMapper(StreamMapper):
                     '-max_muxing_queue_size': str(self.settings.get_setting('max_muxing_queue_size'))
                 }
                 self.set_ffmpeg_advanced_options(**advanced_kwargs)
+
+        # Detect Dolby Vision RPU metadata when explicitly enabled for AV1.
+        # This is intentionally independent from the smart video filters.
+        if (
+            self.settings.get_setting('mode') == 'standard'
+            and self.settings.get_setting('video_codec') == 'av1'
+            and self.settings.get_setting('add_dovi_to_av1')
+        ):
+            detector = DolbyVisionDetect(self.worker_log)
+            probe_data = probe.get_probe()
+            detected_dovi_p8_1 = detector.detect_supported_p8_1_rpu(probe_data)
+            selected_encoder = self.settings.get_setting('video_encoder')
+            self.dovi_rpu_present = detected_dovi_p8_1 and selected_encoder == 'libsvtav1'
+            if detected_dovi_p8_1 and not self.dovi_rpu_present:
+                tools.append_worker_log(
+                    self.worker_log,
+                    "Dolby Vision P8.1 detected, but the selected encoder '{}' is not libsvtav1; "
+                    "DV metadata coding is skipped".format(selected_encoder)
+                )
+            self.hdr10plus_present = detector.detect_hdr10plus(probe_data, abspath)
+            tools.append_worker_log(
+                self.worker_log,
+                "AV1 dynamic metadata: DV P8.1 RPU={}, HDR10+={}".format(
+                    "present" if self.dovi_rpu_present else "not enabled",
+                    "present" if self.hdr10plus_present else "not present"
+                )
+            )
 
         # Check for config specific settings in modes that expose smart filters
         if self.settings.get_setting('mode') in ['basic', 'standard']:
@@ -399,6 +432,22 @@ class PluginStreamMapper(StreamMapper):
                 stream_encoding = [
                     '-c:{}'.format(stream_specifier), encoder_name,
                 ]
+
+                # Dolby Vision metadata is passed to SVT-AV1 through decoded frame side data.
+                # Do not use dovi_rpu as a passthrough filter here: cropped sources are
+                # preprocessed by av1_hdr_pipeline.py so that RPU Level 5 matches the crop.
+                if (
+                    self.dovi_rpu_present
+                    and self.settings.get_setting('video_codec') == 'av1'
+                    and encoder_name == 'libsvtav1'
+                ):
+                    stream_encoding += [
+                        '-dolbyvision:{}'.format(stream_specifier), '1',
+                    ]
+                    tools.append_worker_log(
+                        self.worker_log,
+                        "Dolby Vision P8.1: enabling SVT-AV1 RPU coding for video stream {}".format(stream_id)
+                    )
 
                 # Load encoder classes
                 libx_encoder = LibxEncoder(self.settings, self.probe)
