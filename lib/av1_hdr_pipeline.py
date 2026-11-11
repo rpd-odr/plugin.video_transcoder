@@ -264,7 +264,7 @@ def ivf_frame_count(path):
     return count
 
 
-def inject_hdr10plus(ffmpeg, ffprobe, hdr_tool, output, json_path, json_frames, workdir):
+def inject_hdr10plus(ffmpeg, ffprobe, hdr_tool, output, json_path, json_frames, workdir, dovi_present=False):
     encoded_ivf = os.path.join(workdir, "encoded.ivf")
     injected_ivf = os.path.join(workdir, "encoded_hdr10plus.ivf")
     verified_json = os.path.join(workdir, "verified_hdr10plus.json")
@@ -317,17 +317,68 @@ def inject_hdr10plus(ffmpeg, ffprobe, hdr_tool, output, json_path, json_frames, 
 
     extension = os.path.splitext(output)[1] or ".mkv"
     remuxed = os.path.join(workdir, "final_with_hdr10plus" + extension)
+    remux_command = [
+        ffmpeg, "-hide_banner", "-y",
+        "-i", output, "-i", injected_ivf,
+        "-map", "0", "-map", "-0:v:0", "-map", "1:v:0",
+        "-c", "copy", "-map_metadata", "0", "-map_chapters", "0",
+    ]
+    if dovi_present:
+        # Rebuild the AV1 Dolby Vision configuration record after replacing
+        # the video stream with IVF. Keep compression=none to match the
+        # tested Profile 10 BL+RPU representation.
+        remux_command += ["-bsf:v", "dovi_rpu=compression=none"]
+    remux_command += [remuxed]
     run_checked(
-        [
-            ffmpeg, "-hide_banner", "-y",
-            "-i", output, "-i", injected_ivf,
-            "-map", "0", "-map", "-0:v:0", "-map", "1:v:0",
-            "-c", "copy", "-map_metadata", "0", "-map_chapters", "0",
-            remuxed
-        ],
-        "Remuxing AV1 with HDR10+ while preserving the other output streams"
+        remux_command,
+        "Remuxing AV1 with HDR10+ and restoring Dolby Vision configuration when present"
     )
     os.replace(remuxed, output)
+
+    if dovi_present:
+        final_probe = ffprobe_json(
+            ffprobe, output,
+            ("-select_streams", "v:0", "-show_streams")
+        )
+        final_streams = final_probe.get("streams", [])
+        side_data = final_streams[0].get("side_data_list", []) if final_streams else []
+        dovi_config = next(
+            (item for item in side_data
+             if item.get("side_data_type") == "DOVI configuration record"),
+            None
+        )
+        if not dovi_config:
+            raise RuntimeError("Final MKV is missing its Dolby Vision configuration record")
+        expected_dovi = {
+            "dv_profile": 10,
+            "rpu_present": 1,
+            "el_present": 0,
+            "bl_present": 1,
+            "dv_bl_signal_compatibility_id": 1,
+        }
+        for key, expected in expected_dovi.items():
+            if int(dovi_config.get(key, -1)) != expected:
+                raise RuntimeError(
+                    "Final Dolby Vision configuration mismatch: {}={} (expected {})".format(
+                        key, dovi_config.get(key), expected
+                    )
+                )
+        log("Verified final Dolby Vision Profile 10 BL+RPU configuration")
+
+    final_json = os.path.join(workdir, "final_verified_hdr10plus.json")
+    run_checked(
+        [hdr_tool, "extract", output, "-o", final_json],
+        "Verifying HDR10+ metadata after final MKV remux"
+    )
+    with open(final_json, "r", encoding="utf-8") as stream:
+        final_metadata = json.load(stream)
+    final_scenes = final_metadata.get("SceneInfo")
+    if not isinstance(final_scenes, list) or len(final_scenes) != video_frames:
+        raise RuntimeError(
+            "Final MKV HDR10+ verification failed: expected {} frames, found {}".format(
+                video_frames, len(final_scenes) if isinstance(final_scenes, list) else 0
+            )
+        )
 
 
 def main(config_path):
@@ -395,7 +446,8 @@ def main(config_path):
 
         if hdr10plus_present:
             inject_hdr10plus(
-                ffmpeg, ffprobe, hdr_tool, output, hdr_json, hdr_frames, workdir
+                ffmpeg, ffprobe, hdr_tool, output, hdr_json, hdr_frames, workdir,
+                dovi_present=dovi_present
             )
         log("AV1 metadata pipeline completed successfully")
     finally:
