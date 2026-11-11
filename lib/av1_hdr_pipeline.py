@@ -114,7 +114,7 @@ def extract_hdr10plus(hdr_tool, source, json_path):
     return len(scenes)
 
 
-def validate_crop_against_rpu(dovi_tool, source, crop_value, source_info):
+def validate_crop_against_rpu(dovi_tool, rpu_path, crop_value, source_info):
     try:
         crop_w, crop_h, crop_x, crop_y = [int(value) for value in crop_value.split(":")]
     except (AttributeError, TypeError, ValueError):
@@ -125,8 +125,7 @@ def validate_crop_against_rpu(dovi_tool, source, crop_value, source_info):
     crop_right = source_w - crop_w - crop_x
     crop_bottom = source_h - crop_h - crop_y
 
-    # The currently validated RPU edit clears top/bottom letterbox offsets.
-    # Do not apply it to side crops, asymmetric crops, or unknown geometry.
+    # The tested RPU edit only supports symmetric top/bottom letterbox crops.
     if crop_w != source_w or crop_x != 0 or crop_y != crop_bottom:
         raise RuntimeError(
             "The tested DV RPU crop edit only supports symmetric top/bottom letterbox crops; "
@@ -134,34 +133,39 @@ def validate_crop_against_rpu(dovi_tool, source, crop_value, source_info):
         )
 
     summary = run_checked(
-        [dovi_tool, "info", "-s", source],
+        [dovi_tool, "info", "-s", rpu_path],
         "Checking Dolby Vision Level 5 active-area offsets",
         capture=True
     )
     match = re.search(
-        r"L5 offsets:\s*top=(\d+)(?:\.\.(\d+))?,\s*bottom=(\d+)(?:\.\.(\d+))?"
-        r"(?:,\s*left=(\d+)(?:\.\.(\d+))?,\s*right=(\d+)(?:\.\.(\d+))?)?",
+        r"L5 offsets:\\s*top=(\\d+)(?:\\.\\.(\\d+))?,\\s*bottom=(\\d+)(?:\\.\\.(\\d+))?"
+        r"(?:,\\s*left=(\\d+)(?:\\.\\.(\\d+))?,\\s*right=(\\d+)(?:\\.\\.(\\d+))?)?",
         summary,
         flags=re.IGNORECASE
     )
-    if match:
-        top_max = int(match.group(2) or match.group(1))
-        bottom_max = int(match.group(4) or match.group(3))
-        left_max = int(match.group(6) or match.group(5) or 0)
-        right_max = int(match.group(8) or match.group(7) or 0)
-        if top_max != crop_y or bottom_max != crop_bottom or left_max or right_max:
-            raise RuntimeError(
-                "Detected crop ({}, {}) does not match DV L5 offsets "
-                "(top={}, bottom={}, left={}, right={}); refusing to rewrite RPU".format(
-                    crop_y, crop_bottom, top_max, bottom_max, left_max, right_max
-                )
+    if not match:
+        raise RuntimeError("Could not determine Dolby Vision Level 5 offsets from source RPU")
+
+    top_max = int(match.group(2) or match.group(1))
+    bottom_max = int(match.group(4) or match.group(3))
+    left_max = int(match.group(6) or match.group(5) or 0)
+    right_max = int(match.group(8) or match.group(7) or 0)
+    if top_max != crop_y or bottom_max != crop_bottom or left_max or right_max:
+        raise RuntimeError(
+            "Detected crop ({}, {}) does not match DV L5 offsets "
+            "(top={}, bottom={}, left={}, right={}); refusing to rewrite RPU".format(
+                crop_y, crop_bottom, top_max, bottom_max, left_max, right_max
             )
-    else:
-        log("No summarized L5 offsets found; applying the tested active-area reset")
+        )
+    frames_match = re.search(r"^\\s*Frames:\\s*(\\d+)\\s*$", summary, flags=re.MULTILINE)
+    if not frames_match:
+        raise RuntimeError("Could not determine source RPU frame count")
+    return int(frames_match.group(1))
+
 
 def prepare_dovi_hevc(ffmpeg, dovi_tool, source, workdir, crop_value, source_info):
-    validate_crop_against_rpu(dovi_tool, source, crop_value, source_info)
     source_hevc = os.path.join(workdir, "source.hevc")
+    source_rpu = os.path.join(workdir, "source.rpu")
     edited_rpu = os.path.join(workdir, "crop_adjusted.rpu")
     prepared_hevc = os.path.join(workdir, "prepared.hevc")
 
@@ -174,9 +178,51 @@ def prepare_dovi_hevc(ffmpeg, dovi_tool, source, workdir, crop_value, source_inf
         "Extracting source HEVC elementary stream"
     )
     run_checked(
+        [dovi_tool, "extract-rpu", "-i", source_hevc, "-o", source_rpu],
+        "Extracting original Dolby Vision RPU for crop validation"
+    )
+
+    source_rpu_frames = validate_crop_against_rpu(
+        dovi_tool, source_rpu, crop_value, source_info
+    )
+
+    # This legacy crop-adjustment mode was validated against the source MKV:
+    # it clears Level 5 active-area offsets while retaining the RPU metadata.
+    run_checked(
         [dovi_tool, "-c", "extract-rpu", "-i", source, "-o", edited_rpu],
         "Extracting and clearing Dolby Vision Level 5 active-area offsets"
     )
+
+    adjusted_summary = run_checked(
+        [dovi_tool, "info", "-s", edited_rpu],
+        "Verifying crop-adjusted Dolby Vision RPU",
+        capture=True
+    )
+    frames_match = re.search(
+        r"^\\s*Frames:\\s*(\\d+)\\s*$", adjusted_summary, flags=re.MULTILINE
+    )
+    offsets_match = re.search(
+        r"L5 offsets:\\s*top=(\\d+).*?bottom=(\\d+).*?left=(\\d+).*?right=(\\d+)",
+        adjusted_summary,
+        flags=re.IGNORECASE
+    )
+    if not frames_match or int(frames_match.group(1)) != source_rpu_frames:
+        adjusted_frames = int(frames_match.group(1)) if frames_match else "unknown"
+        raise RuntimeError(
+            "Crop-adjusted RPU frame count {} differs from source {}".format(
+                adjusted_frames, source_rpu_frames
+            )
+        )
+    if not offsets_match:
+        raise RuntimeError("Could not verify Level 5 offsets in crop-adjusted RPU")
+    adjusted_offsets = tuple(int(value) for value in offsets_match.groups())
+    if adjusted_offsets != (0, 0, 0, 0):
+        raise RuntimeError(
+            "Crop-adjusted RPU still contains non-zero Level 5 offsets: {}".format(
+                adjusted_offsets
+            )
+        )
+
     run_checked(
         [
             dovi_tool, "inject-rpu", "-i", source_hevc,
