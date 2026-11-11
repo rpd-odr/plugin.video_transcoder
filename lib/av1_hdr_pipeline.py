@@ -41,6 +41,26 @@ def tool(name, env_name=None):
     raise RuntimeError("Required executable '{}' was not found in the Unmanic container PATH".format(name))
 
 
+def require_mkvmerge():
+    executable = tool("mkvmerge", "MKVMERGE")
+    version_text = run_checked(
+        [executable, "--version"],
+        "Checking MKVToolNix version for AV1 Dolby Vision muxing",
+        capture=True
+    )
+    match = re.search(r"v(\\d+)\\.(\\d+)", version_text)
+    if not match:
+        raise RuntimeError("Could not determine MKVToolNix version: {}".format(version_text.strip()))
+    version = (int(match.group(1)), int(match.group(2)))
+    if version < (79, 0):
+        raise RuntimeError(
+            "AV1 Dolby Vision remux requires MKVToolNix 79.0 or newer; found {}".format(
+                version_text.strip()
+            )
+        )
+    return executable
+
+
 def run_checked(command, label, capture=False):
     log(label)
     result = subprocess.run(
@@ -460,6 +480,8 @@ def main(config_path):
 
     ffmpeg = tool("ffmpeg")
     ffprobe = tool("ffprobe")
+    if dovi_present and hdr10plus_present:
+        require_mkvmerge()
     workdir = tempfile.mkdtemp(prefix=".unmanic-av1-metadata-", dir=os.path.dirname(output) or None)
 
     try:
