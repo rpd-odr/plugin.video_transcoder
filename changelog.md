@@ -2,6 +2,7 @@
 - Restores the Dolby Vision configuration record after HDR10+ AV1 IVF remux using `dovi_rpu=compression=none`.
 - Verifies the final MKV advertises Dolby Vision Profile 10 BL+RPU with compatibility ID 1.
 - Re-extracts HDR10+ from the final MKV and checks the metadata frame count after remux.
+- Restricts the combined DV + HDR10+ remux to single-video-stream sources and publishes the remux only after validation.
 - Replaces the old `dovi_rpu` passthrough path with a crop-aware Dolby Vision P8.1 RPU preparation stage.
 - Adds HDR10+ extraction and post-encode ITU-T T.35 injection into AV1.
 - Adds strict frame-count verification; metadata is never silently duplicated or truncated.
