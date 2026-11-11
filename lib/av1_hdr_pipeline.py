@@ -131,7 +131,7 @@ def validate_crop_against_rpu(dovi_tool, source, crop_value, source_info):
         capture=True
     )
     match = re.search(
-        r"L5 offsets:\\s*top=(\\d+)(?:\\.\\.(\\d+))?,\\s*bottom=(\\d+)(?:\\.\\.(\\d+))?",
+        r"L5 offsets:\s*top=(\d+)(?:\.\.(\d+))?,\s*bottom=(\d+)(?:\.\.(\d+))?",
         summary,
         flags=re.IGNORECASE
     )
