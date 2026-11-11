@@ -138,8 +138,8 @@ def validate_crop_against_rpu(dovi_tool, rpu_path, crop_value, source_info):
         capture=True
     )
     match = re.search(
-        r"L5 offsets:\\s*top=(\\d+)(?:\\.\\.(\\d+))?,\\s*bottom=(\\d+)(?:\\.\\.(\\d+))?"
-        r"(?:,\\s*left=(\\d+)(?:\\.\\.(\\d+))?,\\s*right=(\\d+)(?:\\.\\.(\\d+))?)?",
+        r"L5 offsets:\s*top=(\d+)(?:\.\.(\d+))?,\s*bottom=(\d+)(?:\.\.(\d+))?"
+        r"(?:,\s*left=(\d+)(?:\.\.(\d+))?,\s*right=(\d+)(?:\.\.(\d+))?)?",
         summary,
         flags=re.IGNORECASE
     )
@@ -157,7 +157,7 @@ def validate_crop_against_rpu(dovi_tool, rpu_path, crop_value, source_info):
                 crop_y, crop_bottom, top_max, bottom_max, left_max, right_max
             )
         )
-    frames_match = re.search(r"^\\s*Frames:\\s*(\\d+)\\s*$", summary, flags=re.MULTILINE)
+    frames_match = re.search(r"^\s*Frames:\s*(\d+)\s*$", summary, flags=re.MULTILINE)
     if not frames_match:
         raise RuntimeError("Could not determine source RPU frame count")
     return int(frames_match.group(1))
@@ -199,10 +199,10 @@ def prepare_dovi_hevc(ffmpeg, dovi_tool, source, workdir, crop_value, source_inf
         capture=True
     )
     frames_match = re.search(
-        r"^\\s*Frames:\\s*(\\d+)\\s*$", adjusted_summary, flags=re.MULTILINE
+        r"^\s*Frames:\s*(\d+)\s*$", adjusted_summary, flags=re.MULTILINE
     )
     offsets_match = re.search(
-        r"L5 offsets:\\s*top=(\\d+).*?bottom=(\\d+).*?left=(\\d+).*?right=(\\d+)",
+        r"L5 offsets:\s*top=(\d+).*?bottom=(\d+).*?left=(\d+).*?right=(\d+)",
         adjusted_summary,
         flags=re.IGNORECASE
     )
