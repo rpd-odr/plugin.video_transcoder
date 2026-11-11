@@ -106,7 +106,48 @@ def extract_hdr10plus(hdr_tool, source, json_path):
     return len(scenes)
 
 
-def prepare_dovi_hevc(ffmpeg, dovi_tool, source, workdir):
+def validate_crop_against_rpu(dovi_tool, source, crop_value, source_info):
+    try:
+        crop_w, crop_h, crop_x, crop_y = [int(value) for value in crop_value.split(":")]
+    except (AttributeError, TypeError, ValueError):
+        raise RuntimeError("Invalid detected crop value: {}".format(crop_value))
+
+    source_w = int(source_info.get("width") or 0)
+    source_h = int(source_info.get("height") or 0)
+    crop_right = source_w - crop_w - crop_x
+    crop_bottom = source_h - crop_h - crop_y
+
+    # The currently validated RPU edit clears top/bottom letterbox offsets.
+    # Do not apply it to side crops, asymmetric crops, or unknown geometry.
+    if crop_w != source_w or crop_x != 0 or crop_y != crop_bottom:
+        raise RuntimeError(
+            "The tested DV RPU crop edit only supports symmetric top/bottom letterbox crops; "
+            "detected crop is {}".format(crop_value)
+        )
+
+    summary = run_checked(
+        [dovi_tool, "info", "-s", source],
+        "Checking Dolby Vision Level 5 active-area offsets",
+        capture=True
+    )
+    match = re.search(
+        r"L5 offsets:\\s*top=(\\d+)(?:\\.\\.(\\d+))?,\\s*bottom=(\\d+)(?:\\.\\.(\\d+))?",
+        summary,
+        flags=re.IGNORECASE
+    )
+    if match:
+        top_max = int(match.group(2) or match.group(1))
+        bottom_max = int(match.group(4) or match.group(3))
+        if top_max != crop_y or bottom_max != crop_bottom:
+            raise RuntimeError(
+                "Detected crop ({}, {}) does not match DV L5 offsets (top={}, bottom={}); "
+                "refusing to rewrite RPU".format(crop_y, crop_bottom, top_max, bottom_max)
+            )
+    else:
+        log("No summarized L5 offsets found; applying the tested active-area reset")
+
+def prepare_dovi_hevc(ffmpeg, dovi_tool, source, workdir, crop_value, source_info):
+    validate_crop_against_rpu(dovi_tool, source, crop_value, source_info)
     source_hevc = os.path.join(workdir, "source.hevc")
     edited_rpu = os.path.join(workdir, "crop_adjusted.rpu")
     prepared_hevc = os.path.join(workdir, "prepared.hevc")
@@ -314,7 +355,7 @@ def main(config_path):
                         "Variable-frame-rate source detected; refusing to remap timestamps "
                         "from the temporary HEVC elementary stream"
                     )
-            prepared_hevc = prepare_dovi_hevc(ffmpeg, dovi_tool, source, workdir)
+            prepared_hevc = prepare_dovi_hevc(ffmpeg, dovi_tool, source, workdir, crop_value, info)
             prepared_frames = count_frames(ffprobe, prepared_hevc, "hevc")
             source_frames = count_frames(ffprobe, source)
             if prepared_frames != source_frames:
