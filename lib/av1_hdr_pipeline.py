@@ -48,7 +48,7 @@ def require_mkvmerge():
         "Checking MKVToolNix version for AV1 Dolby Vision muxing",
         capture=True
     )
-    match = re.search(r"v(\\d+)\\.(\\d+)", version_text)
+    match = re.search(r"v(\d+)\.(\d+)", version_text)
     if not match:
         raise RuntimeError("Could not determine MKVToolNix version: {}".format(version_text.strip()))
     version = (int(match.group(1)), int(match.group(2)))
