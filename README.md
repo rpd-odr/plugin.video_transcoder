@@ -9,7 +9,7 @@ This fork adds a metadata-aware AV1 path for supported Dolby Vision Profile 8.1 
 When Config mode is Standard, Video Codec is AV1, and **Preserve Dolby Vision and HDR10+ in AV1** is enabled, the plugin:
 
 - Detects actual Dolby Vision RPU metadata and only enables the tested Profile 8.1 / BL compatibility 1 path.
-- For cropped Dolby Vision sources, extracts the RPU, clears its Level 5 active-area offsets with `dovi_tool -c extract-rpu`, injects the edited RPU into a temporary HEVC elementary stream, and uses that stream for AV1 decoding.
+- For cropped Dolby Vision sources, extracts the source HEVC and RPU separately, verifies that Level 5 offsets exactly match the detected symmetric crop, clears them with the validated `dovi_tool -c extract-rpu` mode, verifies that the adjusted RPU retains the same frame count and has zero Level 5 offsets, then injects it into a temporary HEVC elementary stream for AV1 decoding.
 - Enables SVT-AV1 Dolby Vision coding with `-dolbyvision 1`; it does not rely on the `dovi_rpu` bitstream filter passthrough.
 - Extracts source HDR10+ metadata and injects it into the encoded AV1 stream as ITU-T T.35 metadata OBUs before final remuxing.
 - Verifies that source HDR10+ metadata and encoded AV1 frame counts match. It fails the task rather than duplicating or truncating dynamic metadata.
@@ -31,7 +31,7 @@ The ordinary HEVC-only `hdr10plus_tool` build is not sufficient for the AV1 inje
 
 ## Versioning
 
-Custom releases use the `-rpdN` suffix. Current development version: `0.1.20-rpd4`.
+Custom releases use the `-rpdN` suffix. Current development version: `0.1.20-rpd5`.
 
 ## Upstream
 
