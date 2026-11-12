@@ -428,11 +428,12 @@ def inject_hdr10plus(ffmpeg, ffprobe, hdr_tool, output, json_path, json_frames, 
                 "Final MKV is missing its Dolby Vision configuration record "
                 "(MKVToolNix did not detect AV1 RPU metadata)"
             )
+        # FFprobe exposes these three flags with the "_flag" suffix.
         expected_dovi = {
             "dv_profile": 10,
-            "rpu_present": 1,
-            "el_present": 0,
-            "bl_present": 1,
+            "rpu_present_flag": 1,
+            "el_present_flag": 0,
+            "bl_present_flag": 1,
             "dv_bl_signal_compatibility_id": 1,
         }
         for key, expected in expected_dovi.items():
