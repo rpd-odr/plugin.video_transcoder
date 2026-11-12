@@ -428,7 +428,7 @@ def inject_hdr10plus(ffmpeg, ffprobe, hdr_tool, output, json_path, json_frames, 
                 mkvmerge, "--output", remuxed,
                 "--no-video", output,
                 "--default-duration",
-                "0:{:.9f}fps".format(float(frame_rate)),
+                "0:{}/{}fps".format(frame_rate.numerator, frame_rate.denominator),
                 injected_ivf,
             ],
             "Muxing AV1 with MKVToolNix and rebuilding Dolby Vision dvvC from AV1 RPU"
